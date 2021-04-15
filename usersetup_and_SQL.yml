@@ -1,0 +1,110 @@
+---
+# setup user and run SQL
+- name: Set up a user and then run SQL command
+  hosts: all
+  vars:
+    usrprf: 'DAVECHOU'
+    usrcls: '*USER'
+    homedir: '/home/davechou'
+    curlib: "{{usrprf}}"
+    text: 'test for dave'
+    public_auth: '*NONE'
+    srclib: 'QIWS'
+    srcfile: 'QCUSTCDT'
+    jrn: 'DAVETEST'
+    jrnrcv: 'DAVETEST01'
+    sshfile: 'asnsible_IBMi_id_rsa.pub'
+  gather_facts: no
+  collections:
+    - ibm.power_ibmi
+
+  tasks:
+    - block:
+        - name: check user DAVECHOU and LIB DAVECHOU is existed or not
+          ibmi_object_find:
+            object_name: "{{ item.obj }}"
+            lib_name: "{{ item.lib }}"
+            object_type_list: "{{ item.type }}"
+          register: object_find
+          loop:
+            - { obj: "{{ usrprf }}", lib: "QSYS", type: '*USRPRF' }
+            - { obj: "{{ curlib }}", lib: "QSYS", type: '*LIB'}
+
+        - name: show the display object results
+          debug:
+            msg: "find {{ object_find.results[item].object_list[0].OBJNAME }},
+                 {{ object_find.results[item].object_list[0].OBJTYPE }} "
+
+          loop:
+            - 0
+            - 1
+      tags:
+        - precheck
+
+    - block:
+        - name: copy QIWS/QCSTCDT to lib DAVECHOU
+          ibmi_cl_command:
+            cmd: "CPYF FROMFILE({{ srclib }}/{{ srcfile }}) TOFILE({{ curlib }}/{{ srcfile }}) CRTFILE(*YES) MBROPT(*REPLACE)"
+
+        - name: create journal receiver
+          ibmi_cl_command:
+            cmd: "CRTJRNRCV JRNRCV({{ curlib }}/{{ jrnrcv }}) TEXT(' Journal receiver for ansible')"
+
+        - name: create Journal
+          ibmi_cl_command:
+            cmd: "CRTJRN JRN({{ curlib }}/{{ jrn }}) JRNRCV({{ curlib }}/{{ jrnrcv }}) TEXT('Journal for ansible')"
+
+        - name: start jornal physical file
+          ibmi_cl_command:
+            cmd: "STRJRNPF FILE({{ curlib }}/{{ srcfile }}) JRN({{ curlib }}/{{ jrn }})"
+
+        - name: change the public authority to *exclude on the library
+          ibmi_object_authority:
+            operation: revoke
+            object_name: "*ALL"
+            object_type: "*ALL"
+            object_library: "{{ curlib }}"
+            user:
+              - '*PUBLIC'
+            authority:
+              - '*ALL'
+      tags:
+        - setup_objects
+
+    - block:
+        - name: Run a SQL SELECT command
+          ibmi_sql_query:
+            sql: "SELECT * FROM {{ curlib}}.{{ srcfile }}"
+          register: sql_resultset
+
+        - name: Display the SQL result set
+          debug:
+            msg: "{{ sql_resultset.row}}"
+
+        - name: Display the ROW counts of SQL result set
+          debug:
+            msg: "{{ sql_resultset.row_count}} rows found."
+
+    #    - name: Run a SQL DELETE statement
+    #      ibmi_sql_execute:
+    #        sql: "DELETE FROM {{ curlib }}.{{ srcfile}}
+    #              WHERE CDTLMT < 1000.00"
+    #      register: sql_delete
+
+        - block:
+            - name: Display the entire file
+              ibmi_sql_query:
+                sql: "SELECT * FROM {{ curlib}}.{{srcfile}}"
+              register: sql_resultset
+
+            - name: Display the result set
+              debug:
+                msg: "{{ sql_resultset.row }}"
+            - name: Display the row count found
+              debug:
+                msg: "{{ sql_resultset.row_count}} rows foung"
+          when: sql_delete.rc == 0
+
+
+      tags:
+        - sql

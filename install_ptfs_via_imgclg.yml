@@ -1,0 +1,59 @@
+##  install ptfs via imgclg
+
+---
+- name: install PTFs via imgclg
+  hosts: all
+  vars:
+    ptfid: 'SI72134'
+    lpp: '5733SC1'
+    src_dir: '/Users/davechou/Downloads'
+    dest_ifs_dir: '/tmp'
+    bin_file: 'S0908V01.BIN'
+    apply_option: '*IMMONLY'
+
+  gather_facts: no
+  collections:
+    - ibm.power_ibmi
+
+
+  tasks:
+  - name: Retrieve the ptf info
+    ibmi_display_fix:
+      product: "{{ lpp }}"
+      ptf: "{{ ptfid }}"
+    register: display_ptf_info
+    ignore_errors: yes
+
+  - block:
+      - name: if the PTF is already installed then print message to STDOUT and end play on the host
+        debug:
+          msg: "PTF found with status: {{ display_ptf_info.ptf_info[0].PTF_LOADED_STATUS }}."
+      - meta: end_host
+
+    when: display_ptf_info.msg is not defined
+
+  #- name: Copy PTF ISO file to host
+#    copy:
+#      src: "{{ src_dir }}/{{ bin_file }}"
+#      dest: "{{ dest_ifs_dir }}"
+#      force: true
+#    register: file_copy_ok
+
+  - name: Install PTFs of LIC 5733sc1 from image catalog
+    ibmi_fix_imgclg:
+      product_id:
+        - "{{ lpp }}"
+      src: "{{ dest_ifs_dir }}"
+      apply_type: "{{ apply_option }}"
+      hiper_only: False
+      use_temp_path: True
+      rollback: True
+      virtual_image_name_list:
+        - "{{ bin_file }}"
+      joblog: True
+    register: PTF_result
+    ignore_errors: yes
+
+  - name: display job joblog
+    debug:
+      msg: "{{ PTF_result }}"

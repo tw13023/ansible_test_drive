@@ -1,0 +1,167 @@
+---
+# install_ptfs_via_imgclg
+- name: Set up a user, library and then run SQL statements
+  hosts: all
+  vars:
+    usrprf: 'ROBINSG'
+    usrcls: '*USER'
+    homedir: '/home/robinsg'
+    curlib: "{{ usrprf }}"
+    text: 'Glenn Robinson'
+    public_auth: '*NONE'
+    srclib: 'QIWS'
+    srcfile: 'QCUSTCDT'
+    jrn: 'ANSIBJRN'
+    jrnrcv: 'ANSIBRCV01'
+    sshfile: 'ansible_id_rsa.pub'
+  gather_facts: no
+  collections:
+    - ibm.power_ibmi
+
+  tasks:
+  - block:
+    - name: Does the user profile or library already exist?
+      ibmi_object_find:
+        object_name: "{{ item.obj }}"
+        lib_name: "{{ item.lib }}"
+        object_type_list: "{{ item.type }}"
+      register: object_find
+      with_items:
+        - { obj: "{{ usrprf }}", lib: 'QSYS', type: '*USRPRF'}
+        - { obj: "{{ curlib }}", lib: 'QSYS', type: '*LIB'}
+
+    - name: If user profile or library already exists then fail assertion and do not continue
+      assert:
+        that:
+          - "{{ item.object_list | length }} == 0"
+      with_items: "{{ object_find.results }}"
+
+    tags:
+      - pre_checks
+
+  - block:
+    - name: Create the user profile
+      ibmi_user_and_group:
+        operation: create
+        user: "{{ usrprf }}"
+        user_class: "{{ usrcls }}"
+        status: '*ENABLED'
+        owner: '*USRPRF'
+        text: "{{ text }}"
+        parameters: "HOMEDIR('{{ homedir }}') CURLIB({{ curlib }})"  # Additional aoostophes required to correct IFS format in HOMEDIR parameter
+
+    - name: Create the user's home directory
+      file:
+        path: "{{ homedir }}"
+        state: directory
+        owner: "{{ usrprf }}"
+        mode: '0744'
+
+    - name: Create a library for the user
+      ibmi_cl_command:
+        cmd: "CRTLIB LIB({{ curlib }})"
+
+    - name: Copy the database file in to the library created
+      ibmi_cl_command:
+        cmd: "CPYF FROMFILE({{ srclib }}/{{ srcfile }}) TOFILE({{ curlib }}/{{ srcfile }}) CRTFILE(*YES)"
+
+    - name: Create journal receiver
+      ibmi_cl_command:
+        cmd: CRTJRNRCV JRNRCV({{ curlib }}/{{ jrnrcv }}) TEXT('JOURNAL RECEIVER FOR ANSIBLE')
+
+    - name: Create journal
+      ibmi_cl_command:
+        cmd: CRTJRN JRN({{ curlib }}/{{ jrn }}) JRNRCV({{ curlib }}/{{ jrnrcv }}) TEXT('JOURNAL FOR ANSIBLE')
+
+    - name: Start journal for file
+      ibmi_cl_command:
+        cmd: STRJRNPF FILE({{ curlib }}/{{ srcfile }}) JRN({{ curlib }}/{{ jrn }})
+
+    - name: Change the owner of the library to the user profile name we created
+      ibmi_cl_command:
+        cmd: "CHGOBJOWN OBJ({{ curlib }}) OBJTYPE(*LIB) NEWOWN({{ usrprf }}) CUROWNAUT(*REVOKE)"
+
+    - name: Change public authority to *EXCLUDE on the library
+      ibmi_object_authority:
+        operation: revoke
+        object_name: "{{ curlib }}"
+        object_library: "*LIBL"
+        object_type: "*LIB"
+        user:
+          - '*PUBLIC'
+        authority:
+          - '*ALL'
+
+    - name: Change the owner of the objects to the user profile name we created
+      ibmi_cl_command:
+        cmd: "CHGOBJOWN OBJ({{ item.lib }}/{{ item.obj }}) OBJTYPE({{ item.type }}) NEWOWN({{ usrprf }}) CUROWNAUT(*REVOKE)"
+      with_items:
+        - { obj: "{{ srcfile }}", lib: "{{ curlib }}", type: '*FILE' }
+        - { obj: "{{ jrn }}", lib: "{{ curlib }}", type: '*JRN' }
+        - { obj: "{{ jrnrcv }}", lib: "{{ curlib }}", type: '*JRNRCV' }
+
+    - name: Change public authority to *EXCLUDE on the object in the library
+      ibmi_object_authority:
+        operation: revoke
+        object_name: "*ALL"
+        object_library: "{{ curlib }}"
+        object_type: "*ALL"
+        user:
+          - '*PUBLIC'
+        authority:
+          - '*ALL'
+
+    - name: Set authorized key for the user we created taken from local rsa file
+      authorized_key:
+        user: "{{ usrprf }}"
+        state: present
+        key: "{{ lookup('file', '/home/{{ usrprf | lower }}/.ssh/{{ sshfile }}') }}"
+
+    tags:
+      - setup_objects
+
+# Now switch to run the SQL statements as the new user created
+
+  - block:
+    - name: Set the user name
+      set_fact:
+        ansible_ssh_user: "{{ usrprf }}"
+
+    - name: Run an SQL SELECT statement
+      ibmi_sql_query:
+        sql: "SELECT * FROM {{ curlib }}.{{ srcfile }}
+              WHERE CDTLMT > 999.99"
+      register: sql_resultset
+
+    - name: Display the SQL query result set
+      debug:
+        msg: "{{ sql_resultset.row }}"
+
+    - name: Display the SQL query rows found
+      debug:
+        msg: "{{ sql_resultset.row_count }} rows found."
+
+    - name: Run an SQL DELETE statement
+      ibmi_sql_execute:
+        sql: "DELETE FROM {{ curlib }}.{{ srcfile }}
+              WHERE CDTLMT < 1000.00"
+      register: sql_delete
+
+    - block:
+      - name: Display the entire file
+        ibmi_sql_query:
+          sql: "SELECT * FROM {{ curlib }}.{{ srcfile }}"
+        register: sql_resultset
+
+      - name: Display results
+        debug:
+          msg: "{{ sql_resultset.row }}"
+
+      - name: Display rows found
+        debug:
+          msg: "{{ sql_resultset.row_count }} found."
+
+      when: sql_delete.rc == 0
+
+    tags:
+      - sql

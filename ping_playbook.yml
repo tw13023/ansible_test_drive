@@ -1,0 +1,24 @@
+---
+- name: This is a connection test
+    hosts: all
+  gather_facts: yes
+  collections:
+    - ibm.power_ibmi
+
+  tasks:
+   # task 1
+  - name: test connection
+    ping:
+    register: message
+
+   # task 2
+  - name: print debug message
+    debug:
+      msg: "{{ message }}"
+
+
+
+
+  #- name: show gather_facts
+#    debug:
+#      msg: "{{ as400_facts }}"

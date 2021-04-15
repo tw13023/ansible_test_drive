@@ -1,0 +1,28 @@
+---
+# this is the test of module ibmi_ethernet_port
+
+- name: test the module of IBMi_ethernet_port
+  hosts: ctciha9x
+  gather_facts: no
+  collections:
+    - ibm.power_ibmi
+
+  tasks:
+    - name: get the info of ethernet ports
+      ibmi_ethernet_port:
+      register: eth_info
+
+    - name: output the resutls as the debug message
+      debug:
+        msg: "{{ eth_info }}"
+
+    - name: Check whether yum has been installed.
+      raw: ls -l /QOpensys/pkgs/bin/yum
+      args:
+        executable: /qopensys/usr/bin/qsh
+      register: default_yum_existance
+      ignore_errors: True
+
+    - name: output the "default_yum_existance"
+      debug:
+        msg: "{{ default_yum_existance.rc }}"
