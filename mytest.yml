@@ -1,0 +1,17 @@
+---
+- hosts: all
+  gather_facts: no
+  collections:
+    - ibm.power_ibmi
+
+  tasks:
+
+    - name: query the iasp name
+      ibmi_sql_query:
+        sql: "SELECT * FROM QSYS2.ASP_INFO WHERE ASP_STATE = 'AVAILABLE' AND ASP_NUMBER != 1;"
+      register: iasp_list
+
+    - name: display the iasp query output
+      debug:
+        msg: "{{ iasp_list }}" 
+    #    msg: "{{ iasp_list.row[0].DEVICE_DESCRIPTION_NAME }}"

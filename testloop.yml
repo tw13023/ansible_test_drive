@@ -4,7 +4,7 @@
 
   tasks:
     - name: Echo a value from the loop
-      command: echo "{{ item }}"
+      command: echo "{{ loop_item }}"
       loop:
         - 1
         - 2
@@ -12,4 +12,5 @@
         - 4
         - 5
         - 6
-    
+      loop_control:
+        loop_var: loop_item

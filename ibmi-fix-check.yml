@@ -1,0 +1,51 @@
+---
+- name: check the ptf from psp
+  hosts: ctciha9y
+  gather_facts: false
+  collections:
+    - ibm.power_ibmi
+
+  tasks:
+    - name: guery a single group
+      ibmi_fix_check:
+        groups:
+          - "SF99730"
+      register: single_group
+
+    - name: display a single single_group
+      debug:
+        msg: "Count: {{ single_group.count }} PTF info: {{ single_group.group_info[0].ptf_group_number }} "
+
+    - name: guery_two_ptf
+      ibmi_fix_check:
+        ptfs:
+          - "SI71691"
+          - "SI74112"
+      register: two_ptf
+
+    - name: display query_two_ptf
+      debug:
+        msg: "{{ two_ptf }}"
+
+    - name: deep_search_ptf
+      ibmi_fix_check:
+        ptfs:
+          - "SI63115"
+        expanded_requisites: true
+      register: deep_search_ptf
+
+    - name: display deep_search_ptf
+      debug:
+        msg: "{{ deep_search_ptf.ptf_info }}"
+
+    - name: query_a_group_and_a_cum
+      ibmi_fix_check:
+        groups:
+          - "SF99738"
+          - "SF99740"
+
+      register: a_group_and_a_cum
+
+    - name: display query_a_group_and_a_cum
+      debug:
+        msg: " Count: {{ a_group_and_a_cum.count}} , Group info: {{ a_group_and_a_cum.group_info}}"

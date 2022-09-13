@@ -1,0 +1,75 @@
+---
+- hosts: ctciha9y
+  gather_facts: false
+  collections:
+   - ibm.power_ibmi
+
+  tasks:
+    - name: query_some_group_info
+      ibmi_fix_group_check:
+        groups:
+          - "SF99740"
+      register: group_info
+
+    - name: display_group_info
+      debug:
+        msg: "{{ group_info.count }} group info returned"
+
+    - name: add_group_info_records
+      ibmi_fix_repo:
+        action: 'add'
+        type: 'ptf_group'
+        checksum: false
+        parameters:
+          - {'ptf_group_number': '{{ group_info.group_info[0].ptf_group_number }}',
+            'ptf_group_level': '{{ group_info.group_info[0].ptf_group_level }}',
+            'ptf_list': '{{ group_info.group_info[0].ptf_list }}',
+            'release_date': '{{ group_info.group_info[0].release_date }}'}
+      register: add_group_info_records
+
+    - name: display_add_group_info_records
+      debug:
+        msg: '{{ add_group_info_records.row_changed }} records added'
+
+    - name: query_group_info_records
+      ibmi_fix_repo:
+        action: 'find'
+        type: 'ptf_group'
+        parameters:
+          - {'ptf_group_number': 'SF99740'}
+      register: group_info_records
+
+    - name: display_query_group_info_records
+      debug:
+        var: group_info_records.success_list | length
+    - name: display_query_group_info_records
+      debug:
+        var: group_info_records.success_list[0].ptf_group_number
+    - name: display_query_group_info_records
+      debug:
+        var: group_info_records.success_list[0].ptf_group_level
+    - name: display_query_group_info_records
+      debug:
+        var: group_info_records.success_list[0].release_date
+    - name: display_query_group_info_records
+      debug:
+        var: group_info_records.success_list[0].ptf_list | length
+
+    - name: change_group_info_records
+      ibmi_fix_repo:
+        action: 'update'
+        type: 'ptf_group'
+        checksum: true
+        parameters:
+          - {'order_id:': '2023177915',
+             'file_path': '/QIBM/UserData/OS/Service/ECS/PTF/2023177915',
+             'ptf_group_number': '{{ group_info.group_info[0].ptf_group_number }}',
+             'ptf_group_level': ' {{ group_info.group_info[0].ptf_group_level}}',
+             'release_date': '{{ group_info.group_info[0].release_date}}' }
+      register: change_group_info_records
+
+    - name: display change_group_info_records
+      debug:
+        msg: " {{ change_group_info_records }}"
+
+    

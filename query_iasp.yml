@@ -1,0 +1,44 @@
+---
+
+- hosts: all
+  gather_facts: no
+  collections:
+    - ibm.power_ibmi
+
+  tasks:
+
+  - name: Query the iASP existing
+    ibmi_sql_query:
+      sql: "SELECT * FROM QSYS2.ASP_INFO WHERE ASP_STATE = 'AVAILABLE' and ASP_NUMBER != 1;"
+    register: iasp_list
+
+  - name: show the content of iasp_list
+    debug:
+      msg: "iASP device name: {{ iasp_list.row[0]['DEVICE_DESCRIPTION_NAME'] }}"
+
+
+  - name: create lib davetest in iasp02
+    ibmi_cl_command:
+      cmd: CRTLIB LIB(DAVETEST) ASP(*ASPDEV) ASPDEV({{ iasp_list.row[0]['DEVICE_DESCRIPTION_NAME'] }})
+      asp_group: "{{ iasp_list.row[0]['DEVICE_DESCRIPTION_NAME'] }}"
+    register: crt_lib_repeated_result
+    ignore_errors: True
+
+  - name: assert the repeating creation of the library failed
+    assert:
+      that:
+      - (crt_lib_repeated_result.job_log | selectattr('MESSAGE_ID', 'equalto', 'CPF2111') | map(attribute='MESSAGE_ID') | list | length) >= 1
+      success_msg: " You can not create duplicated librarry "
+
+
+  - name: find object
+    ibmi_object_find:
+      iasp_name: '*SYSBAS'
+      lib_name: '*ALL'
+      object_name: 'DAVETEST'
+      object_type_list: '*ALL'
+    register: objext_list
+
+  - name: show the object find
+    debug:
+      msg: "{{ objext_list }}"

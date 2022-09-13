@@ -1,0 +1,9 @@
+---
+- name: check os family
+  hosts: ctciha9y
+  gather_facts: true
+
+  tasks:
+    - name: show the os family name
+      debug:
+        msg: "{{ ansible_os_family.upper() }}"

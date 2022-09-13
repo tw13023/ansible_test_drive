@@ -21,9 +21,5 @@
 
   - name: show python version
     debug:
-      # msg: "{{ ansible_python_interpreter.split('/')[-1] }}"
-      msg: "{{ ansible_python_interpreter.split('/')[-1].split('.')[0] }}"
-
-  - name: show the full path of python interpreter
-    debug:
-      msg: "{{ ansible_python_interpreter }}"
+      msg: "{{ ansible_python_interpreter.split('/')[-1] }}"
+      #msg: "{{ ansible_python_interpreter.split('/')[-1].split('.')[0] }}"

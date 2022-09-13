@@ -1,0 +1,35 @@
+---
+- name: check if a set of individual pts are already in fix hub
+
+  hosts: ctciha9y
+  gather_facts: false
+  collections:
+    - ibm.power_ibmi
+
+  tasks:
+
+    - name: download individual ptf
+      ibmi_download_fix:
+        ptf_id: 'SF98730'
+        order: '*PTFID'
+        reorder: '*YES'
+        joblog: true
+      register: download_result
+    - name: show download result
+      debug:
+        msg: { download_result }
+
+
+    - name: check if individual ptf are already in catalog
+      ibmi_fix_repo:
+        type: "single_ptf"
+        action: "find"
+        parameters:
+            ['ptf_id': 'SF98730']
+        checksum: true
+
+      register: fix_repo_find_result
+
+    - name: display the find RESULT
+      debug:
+        msg: { fix_repo_find_result }
