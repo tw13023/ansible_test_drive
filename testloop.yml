@@ -3,14 +3,23 @@
   hosts: localhost
 
   tasks:
-    - name: Echo a value from the loop
-      command: echo "{{ loop_item }}"
+    - name: print message
+      debug:
+        msg: " the item is {{ item }} and the loop index is {{ i }} "
+      loop: 
+        - hello
+        - world
+      loop_control:
+        index_var: i
+
+    - name: test for the two loops and loop_var
+      include_tasks: inner.yml
       loop:
         - 1
         - 2
-        - 3
+        - 3 
         - 4
         - 5
-        - 6
       loop_control:
-        loop_var: loop_item
+        loop_var: outer_item 
+      
